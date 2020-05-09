@@ -347,7 +347,7 @@ EXPORT_C_(u32) USBread32(u32 addr) {
 
 	hard=ohci_mem_read(qemu_ohci,addr);
 
-	USB_LOG("* Known 32bit read at address %lx: %lx\n", addr, hard);
+	//USB_LOG("* Known 32bit read at address %lx: %lx\n", addr, hard);
 
 	return hard;
 }
@@ -361,7 +361,7 @@ EXPORT_C_(void) USBwrite16(u32 addr, u16 value) {
 }
 
 EXPORT_C_(void) USBwrite32(u32 addr, u32 value) {
-	USB_LOG("* Known 32bit write at address %lx value %lx\n", addr, value);
+	//USB_LOG("* Known 32bit write at address %lx value %lx\n", addr, value);
 	ohci_mem_write(qemu_ohci,addr,value);
 }
 
@@ -375,6 +375,19 @@ EXPORT_C_(int) _USBirqHandler(void)
 {
 	//fprintf(stderr," * USB: IRQ Acknowledged.\n");
 	//qemu_ohci->intr_status&=~bits;
+
+	for (int i = 0; i < 2; i++) {
+		if (qemu_ohci && qemu_ohci->rhport[i].port.dev
+				&& qemu_ohci->rhport[i].port.dev->irq == 0) {
+			return 1;
+		}
+	}
+
+	static int irq = 0;
+	irq++;
+	if (irq == 20) irq = 0;
+	return irq == 0 ? 1 : 0;
+
 	return 1;
 }
 

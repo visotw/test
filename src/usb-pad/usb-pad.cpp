@@ -174,6 +174,10 @@ static void pad_handle_data(USBDevice *dev, USBPacket *p)
 	case USB_TOKEN_IN:
 		if (devep == 1 && s->pad) {
 			ret = s->pad->TokenIn(data, p->iov.size);
+
+			if (s->pad->Type() == WT_BUZZ_CONTROLLER) {
+				dev->irq = 1;
+			}
 			if (ret > 0)
 				usb_packet_copy (p, data, MIN(ret, sizeof(data)));
 			else
@@ -229,6 +233,11 @@ static void pad_handle_control(USBDevice *dev, USBPacket *p, int request, int va
 		break;
 		/* hid specific requests */
 	case SET_REPORT:
+		USB_LOG("Florin : Set HID report : %x ; len=%x; ", request, length);
+		for (int i = 0; i < length; i++) {
+			USB_LOG("%02x ", data[i]);
+		}
+		USB_LOG("\n");
 		// no idea, Rock Band 2 keeps spamming this
 		if (length > 0) {
 			OSDebugOut(TEXT("SET_REPORT: 0x%02X \n"), data[0]);
