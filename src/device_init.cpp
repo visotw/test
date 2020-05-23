@@ -17,4 +17,6 @@ void RegisterDevice::Initialize()
 	inst.Add(DEVTYPE_HIDMOUSE, new DeviceProxy<usb_hid::HIDMouseDevice>());
 	inst.Add(DEVTYPE_RBKIT, new DeviceProxy<usb_pad::RBDrumKitDevice>());
 	inst.Add(DEVTYPE_BUZZ, new DeviceProxy<usb_pad::BuzzDevice>());
+	inst.Add(DEVTYPE_GAMETRAK, new DeviceProxy<usb_pad::GametrakDevice>());
+	inst.Add(DEVTYPE_REALPLAY, new DeviceProxy<usb_pad::RealPlayDevice>());
 }

@@ -172,21 +172,93 @@ static void pad_handle_data(USBDevice *dev, USBPacket *p)
 
 	switch(p->pid) {
 	case USB_TOKEN_IN:
+		fprintf(stderr, "Florin: dataIn: id=%x ep=%x : \n", p->pid, p->ep->nr);
 		if (devep == 1 && s->pad) {
 			ret = s->pad->TokenIn(data, p->iov.size);
 
-			if (s->pad->Type() == WT_BUZZ_CONTROLLER) {
+            if (s->pad->Type() == WT_BUZZ_CONTROLLER) {
+                dev->irq = 1;
+            }
+
+			if (s->pad->Type() == WT_GAMETRAK_CONTROLLER) {
 				dev->irq = 1;
-			}
+				////int btn = !!(data[2] & 0x10);
+				//int btn = data[2];
+
+				//ret = 16;
+				//memset(data, 0, 16);
+				////for (int i = 0; i < 12; i += 2) {
+				////    data[i] = 512;
+				////}
+				////data[12] == 0;
+				//data[0] = 0x1f;
+				//data[1] = 0x01;
+				//data[12] = btn;
+
+				ret = 16;
+				memset(data + 2, 0, 30);
+				for (int i = 0; i < ret; i++) {
+					data[i] = (i | 0xf0);
+				}
+
+				for (int i = 0; i < ret; i++) {
+					fprintf(stderr, "%02x ", data[i]);
+				}
+				fprintf(stderr, "\n");
+            }
+
+            if (s->pad->Type() == WT_REALPLAY_CONTROLLER) {
+                dev->irq = 1;
+
+                ret = 19;
+                memset(data, 0, 19);
+                data[0] = 0xac;
+                data[1] = 0x08;
+                data[2] = 0xa3;
+                data[3] = 0x07;
+                data[4] = 0x32;
+                data[5] = 0x09;
+                for (int i = 0; i < ret; i++) {
+                    fprintf(stderr, "%02x ", data[i]);
+                }
+                fprintf(stderr, "\n");
+            }
+
+
 			if (ret > 0)
 				usb_packet_copy (p, data, MIN(ret, sizeof(data)));
 			else
 				p->status = ret;
+		} else if (devep == 2 && s->pad) {
+
+			static int x_len = 0;
+			static int x_loop = 0;
+			x_loop++;
+			if (x_loop == 200) {
+				x_loop = 0;
+				x_len++;
+				if (x_len == 60) {
+					x_len = 0;
+				}
+			}
+			ret = x_len;
+			fprintf(stderr, "Florin: dataIn: id=%x ep=%x ret=%d\n", p->pid, p->ep->nr, ret);
+
+			//data[0] = 0;
+			//data[1] = 0;
+			//data[2] = 0;
+			//data[3] = 0;
+			//data[4] = 0;
+			//data[5] = 0;
+			//data[6] = 0;
+			//data[7] = 0;
+			usb_packet_copy(p, data, MIN(ret, sizeof(data)));
 		} else {
 			goto fail;
 		}
 		break;
 	case USB_TOKEN_OUT:
+		fprintf(stderr, "Florin: dataOut: id=%x ep=%x\n", p->pid, p->ep->nr);
 		usb_packet_copy (p, data, MIN(p->iov.size, sizeof(data)));
 		/*fprintf(stderr,"usb-pad: data token out len=0x%X %X,%X,%X,%X,%X,%X,%X,%X\n",len, 
 			data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7]);*/
@@ -215,6 +287,18 @@ static void pad_handle_control(USBDevice *dev, USBPacket *p, int request, int va
 	int ret = 0;
 
 	int t = (s->port == PLAYER_ONE_PORT) ? conf.WheelType[0] : conf.WheelType[1];
+	fprintf(stderr, "Florin: usb_ctrl; req=%4x (%s), val=%4x, idx=%4x, len=%4x : [",
+			request,
+			(request ==      5) ? "setAddr" :
+			(request == 0x8006) ? "getDesc" :
+			(request ==      9) ? "setConf" :
+			(request == 0x2109) ? "setRepr" :
+			"",
+		value, index, length);
+	for (int i = 0; i < length; i++) {
+		fprintf(stderr, "%02x ", data[i]);
+	}
+	fprintf(stderr, "]\n");
 
 	switch(request) {
 	case DeviceRequest | USB_REQ_GET_DESCRIPTOR:
@@ -233,11 +317,12 @@ static void pad_handle_control(USBDevice *dev, USBPacket *p, int request, int va
 		break;
 		/* hid specific requests */
 	case SET_REPORT:
-		USB_LOG("Florin : Set HID report : %x ; len=%x; ", request, length);
-		for (int i = 0; i < length; i++) {
-			USB_LOG("%02x ", data[i]);
-		}
-		USB_LOG("\n");
+		//fprintf(stderr, "Florin : Set HID report : %x ; len=%x\n", request, length);
+		//for (int i = 0; i < length; i++) {
+		//	fprintf(stderr, "%02x ", data[i]);
+		//}
+		//fprintf(stderr, "\n");
+
 		// no idea, Rock Band 2 keeps spamming this
 		if (length > 0) {
 			OSDebugOut(TEXT("SET_REPORT: 0x%02X \n"), data[0]);
@@ -267,10 +352,25 @@ static void pad_handle_control(USBDevice *dev, USBPacket *p, int request, int va
 				ret = sizeof(pad_gtforce_hid_report_descriptor);
 				memcpy(data, pad_gtforce_hid_report_descriptor, ret);
 			}
-			else
+			else if (t == WT_GENERIC)
 			{
 				ret = sizeof(pad_driving_force_hid_separate_report_descriptor);
 				memcpy(data, pad_driving_force_hid_separate_report_descriptor, ret);
+			}
+			else if (t == WT_BUZZ_CONTROLLER)
+			{
+				ret = sizeof(buzz_hid_report_descriptor);
+				memcpy(data, buzz_hid_report_descriptor, ret);
+			}
+			else if (t == WT_GAMETRAK_CONTROLLER)
+			{
+				ret = sizeof(gametrak_ps2_hid_report_descriptor);
+				memcpy(data, gametrak_ps2_hid_report_descriptor, ret);
+            }
+			else if (t == WT_REALPLAY_CONTROLLER)
+			{
+                ret = sizeof(realplay_hid_report_descriptor);
+                memcpy(data, realplay_hid_report_descriptor, ret);
 			}
 			p->actual_length = ret;
 			break;
@@ -408,6 +508,12 @@ void pad_copy_data(PS2WheelTypes type, uint8_t *buf, wheel_data_t &data)
 		buf[2] = data.buttons & 0xff;
 		buf[3] = (data.buttons >> 8) & 0xff;
 		buf[4] = 0xf0 | ((data.buttons >> 16) & 0xf);
+		break;
+
+	case WT_GAMETRAK_CONTROLLER:
+		memset(buf, 0, 16);
+		buf[0] = data.buttons & 0xff;
+		buf[1] = (data.buttons >> 8) & 0xff;
 		break;
 
 	default:
@@ -720,7 +826,7 @@ USBDevice* BuzzDevice::CreateDevice(int port)
 	s->dev.klass.open = pad_open;
 	s->dev.klass.close = pad_close;
 	s->dev.klass.usb_desc = &s->desc;
-	s->dev.klass.product_desc = s->desc.str[2];
+	s->dev.klass.product_desc = s->desc.str[1];
 
 	usb_desc_init(&s->dev);
 	usb_ep_init(&s->dev);
@@ -764,7 +870,181 @@ void BuzzDevice::Initialize()
 	RegisterPad::Initialize();
 }
 
-REGISTER_DEVICE(DEVTYPE_PAD, PadDevice);
-REGISTER_DEVICE(DEVTYPE_RBKIT, RBDrumKitDevice);
-REGISTER_DEVICE(DEVTYPE_BUZZ, BuzzDevice);
+// ---- Gametrak ----
+
+USBDevice *GametrakDevice::CreateDevice(int port)
+{
+	std::string varApi;
+	LoadSetting(nullptr, port, TypeName(), N_DEVICE_API, varApi);
+	PadProxyBase *proxy = RegisterPad::instance().Proxy(varApi);
+	if (!proxy) {
+		SysMessage(TEXT("Gametrak: Invalid input API.\n"));
+		USB_LOG("usb-pad: %s: Invalid input API.\n", TypeName());
+		return NULL;
+	}
+
+	USB_LOG("usb-pad: creating device '%s' on port %d with %s\n", TypeName(), port, varApi.c_str());
+	Pad *pad = proxy->CreateObject(port, TypeName());
+
+	if (!pad)
+		return NULL;
+
+	pad->Type(WT_GAMETRAK_CONTROLLER);
+	PADState *s = new PADState();
+
+	s->desc.full = &s->desc_dev;
+	s->desc.str = buzz_desc_strings;
+
+	if (usb_desc_parse_dev(gametrak_dev_descriptor, sizeof(gametrak_dev_descriptor), s->desc, s->desc_dev) < 0)
+		goto fail;
+	if (usb_desc_parse_config(gametrak_config_descriptor, sizeof(gametrak_config_descriptor), s->desc_dev) < 0)
+		goto fail;
+
+	s->f.wheel_type = pad->Type();
+	s->pad = pad;
+	s->port = port;
+	s->dev.speed = USB_SPEED_FULL;
+	s->dev.klass.handle_attach = usb_desc_attach;
+	s->dev.klass.handle_reset = pad_handle_reset;
+	s->dev.klass.handle_control = pad_handle_control;
+	s->dev.klass.handle_data = pad_handle_data;
+	s->dev.klass.unrealize = pad_handle_destroy;
+	s->dev.klass.open = pad_open;
+	s->dev.klass.close = pad_close;
+	s->dev.klass.usb_desc = &s->desc;
+	s->dev.klass.product_desc = s->desc.str[1];
+
+	usb_desc_init(&s->dev);
+	usb_ep_init(&s->dev);
+	pad_handle_reset((USBDevice *)s);
+
+	return (USBDevice *)s;
+
+fail:
+	pad_handle_destroy((USBDevice *)s);
+	return nullptr;
+}
+
+std::list<std::string> GametrakDevice::ListAPIs()
+{
+	return RegisterPad::instance().Names();
+}
+
+const TCHAR *GametrakDevice::LongAPIName(const std::string &name)
+{
+	auto proxy = RegisterPad::instance().Proxy(name);
+	if (proxy)
+		return proxy->Name();
+	return nullptr;
+}
+
+int GametrakDevice::Configure(int port, const std::string &api, void *data)
+{
+	auto proxy = RegisterPad::instance().Proxy(api);
+	if (proxy)
+		return proxy->Configure(port, TypeName(), data);
+	return RESULT_CANCELED;
+}
+
+int GametrakDevice::Freeze(int mode, USBDevice *dev, void *data)
+{
+	return PadDevice::Freeze(mode, dev, data);
+}
+
+void GametrakDevice::Initialize()
+{
+	RegisterPad::Initialize();
+}
+
+// ---- RealPlay ----
+
+USBDevice *RealPlayDevice::CreateDevice(int port)
+{
+	std::string varApi;
+	LoadSetting(nullptr, port, TypeName(), N_DEVICE_API, varApi);
+	PadProxyBase *proxy = RegisterPad::instance().Proxy(varApi);
+	if (!proxy) {
+		SysMessage(TEXT("RealPlay: Invalid input API.\n"));
+		USB_LOG("usb-pad: %s: Invalid input API.\n", TypeName());
+		return NULL;
+	}
+
+	USB_LOG("usb-pad: creating device '%s' on port %d with %s\n", TypeName(), port, varApi.c_str());
+	Pad *pad = proxy->CreateObject(port, TypeName());
+
+	if (!pad)
+		return NULL;
+
+	pad->Type(WT_REALPLAY_CONTROLLER);
+	PADState *s = new PADState();
+
+	s->desc.full = &s->desc_dev;
+	s->desc.str = buzz_desc_strings;
+
+	if (usb_desc_parse_dev(realplay_dev_descriptor, sizeof(realplay_dev_descriptor), s->desc, s->desc_dev) < 0)
+		goto fail;
+    if (usb_desc_parse_config(realplay_config_descriptor, sizeof(realplay_config_descriptor), s->desc_dev) < 0)
+		goto fail;
+
+	s->f.wheel_type = pad->Type();
+	s->pad = pad;
+	s->port = port;
+	s->dev.speed = USB_SPEED_FULL;
+	s->dev.klass.handle_attach = usb_desc_attach;
+	s->dev.klass.handle_reset = pad_handle_reset;
+	s->dev.klass.handle_control = pad_handle_control;
+	s->dev.klass.handle_data = pad_handle_data;
+	s->dev.klass.unrealize = pad_handle_destroy;
+	s->dev.klass.open = pad_open;
+	s->dev.klass.close = pad_close;
+	s->dev.klass.usb_desc = &s->desc;
+	s->dev.klass.product_desc = s->desc.str[1];
+
+	usb_desc_init(&s->dev);
+	usb_ep_init(&s->dev);
+	pad_handle_reset((USBDevice *)s);
+
+	return (USBDevice *)s;
+
+fail:
+	pad_handle_destroy((USBDevice *)s);
+	return nullptr;
+}
+
+std::list<std::string> RealPlayDevice::ListAPIs()
+{
+	return RegisterPad::instance().Names();
+}
+
+const TCHAR *RealPlayDevice::LongAPIName(const std::string &name)
+{
+	auto proxy = RegisterPad::instance().Proxy(name);
+	if (proxy)
+		return proxy->Name();
+	return nullptr;
+}
+
+int RealPlayDevice::Configure(int port, const std::string &api, void *data)
+{
+	auto proxy = RegisterPad::instance().Proxy(api);
+	if (proxy)
+		return proxy->Configure(port, TypeName(), data);
+	return RESULT_CANCELED;
+}
+
+int RealPlayDevice::Freeze(int mode, USBDevice *dev, void *data)
+{
+	return PadDevice::Freeze(mode, dev, data);
+}
+
+void RealPlayDevice::Initialize()
+{
+	RegisterPad::Initialize();
+}
+
+// REGISTER_DEVICE(DEVTYPE_PAD, PadDevice);
+// REGISTER_DEVICE(DEVTYPE_RBKIT, RBDrumKitDevice);
+// REGISTER_DEVICE(DEVTYPE_BUZZ, BuzzDevice);
+// REGISTER_DEVICE(DEVTYPE_GAMETRAK, GametrakDevice);
+
 } //namespace

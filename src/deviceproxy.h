@@ -25,6 +25,8 @@ enum DeviceType
 	DEVTYPE_HIDMOUSE,
 	DEVTYPE_RBKIT,
 	DEVTYPE_BUZZ,
+	DEVTYPE_GAMETRAK,
+	DEVTYPE_REALPLAY,
 };
 
 struct SelectDeviceName {
