@@ -37,6 +37,12 @@ static const USBDescStrings buzz_desc_strings = {
 	"Logitech"
 };
 
+static const USBDescStrings realplay_desc_strings = {
+	"",
+	"In2Games",
+	"Real Play",
+};
+
 void PadDevice::Initialize()
 {
 	RegisterPad::Initialize();
@@ -176,9 +182,9 @@ static void pad_handle_data(USBDevice *dev, USBPacket *p)
 		if (devep == 1 && s->pad) {
 			ret = s->pad->TokenIn(data, p->iov.size);
 
-            if (s->pad->Type() == WT_BUZZ_CONTROLLER) {
-                dev->irq = 1;
-            }
+			if (s->pad->Type() == WT_BUZZ_CONTROLLER) {
+				dev->irq = 1;
+			}
 
 			if (s->pad->Type() == WT_GAMETRAK_CONTROLLER) {
 				dev->irq = 1;
@@ -205,24 +211,24 @@ static void pad_handle_data(USBDevice *dev, USBPacket *p)
 					fprintf(stderr, "%02x ", data[i]);
 				}
 				fprintf(stderr, "\n");
-            }
+			}
 
-            if (s->pad->Type() == WT_REALPLAY_CONTROLLER) {
-                dev->irq = 1;
+			if (s->pad->Type() == WT_REALPLAY_CONTROLLER) {
+				dev->irq = 1;
 
-                ret = 19;
-                memset(data, 0, 19);
-                data[0] = 0xac;
-                data[1] = 0x08;
-                data[2] = 0xa3;
-                data[3] = 0x07;
-                data[4] = 0x32;
-                data[5] = 0x09;
-                for (int i = 0; i < ret; i++) {
-                    fprintf(stderr, "%02x ", data[i]);
-                }
-                fprintf(stderr, "\n");
-            }
+				ret = 19;
+				memset(data, 0, 19);
+				data[0] = 0xac;
+				data[1] = 0x08;
+				data[2] = 0xa3;
+				data[3] = 0x07;
+				data[4] = 0x32;
+				data[5] = 0x09;
+				for (int i = 0; i < ret; i++) {
+					fprintf(stderr, "%02x ", data[i]);
+				}
+				fprintf(stderr, "\n");
+			}
 
 
 			if (ret > 0)
@@ -366,11 +372,11 @@ static void pad_handle_control(USBDevice *dev, USBPacket *p, int request, int va
 			{
 				ret = sizeof(gametrak_ps2_hid_report_descriptor);
 				memcpy(data, gametrak_ps2_hid_report_descriptor, ret);
-            }
+			}
 			else if (t == WT_REALPLAY_CONTROLLER)
 			{
-                ret = sizeof(realplay_hid_report_descriptor);
-                memcpy(data, realplay_hid_report_descriptor, ret);
+				ret = sizeof(realplay_hid_report_descriptor);
+				memcpy(data, realplay_hid_report_descriptor, ret);
 			}
 			p->actual_length = ret;
 			break;
@@ -979,11 +985,11 @@ USBDevice *RealPlayDevice::CreateDevice(int port)
 	PADState *s = new PADState();
 
 	s->desc.full = &s->desc_dev;
-	s->desc.str = buzz_desc_strings;
+	s->desc.str = realplay_desc_strings;
 
 	if (usb_desc_parse_dev(realplay_dev_descriptor, sizeof(realplay_dev_descriptor), s->desc, s->desc_dev) < 0)
 		goto fail;
-    if (usb_desc_parse_config(realplay_config_descriptor, sizeof(realplay_config_descriptor), s->desc_dev) < 0)
+	if (usb_desc_parse_config(realplay_config_descriptor, sizeof(realplay_config_descriptor), s->desc_dev) < 0)
 		goto fail;
 
 	s->f.wheel_type = pad->Type();
